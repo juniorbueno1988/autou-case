@@ -1,131 +1,152 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Classificador de Emails</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: linear-gradient(to right, #f5f5f5, #e0e0e0);
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        min-height: 100vh;
-        padding: 40px 0;
-        color: #333;
-      }
-      .container {
-        background: #fff;
-        width: 90%;
-        max-width: 600px;
-        border-radius: 12px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-        padding: 30px 25px;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-      }
-      h1 { text-align: center; color: #f46720; margin-bottom: 10px; font-size: 28px; }
-      form { display: flex; flex-direction: column; gap: 15px; }
-      label { font-weight: bold; margin-bottom: 5px; }
-      textarea, input[type="file"] {
-        padding: 12px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc; resize: vertical; transition: 0.3s;
-      }
-      textarea:focus, input[type="file"]:focus { outline: none; border-color: #f46720; box-shadow: 0 0 5px rgba(244,103,32,0.5); }
-      button {
-        background-color: #f46720; color: #fff; border: none; padding: 14px; font-size: 16px; border-radius: 8px; cursor: pointer; transition: 0.3s;
-      }
-      button:hover { background-color: #d35400; }
-      .botao-limpar { background-color: #ccc; color: #333; }
-      .botao-limpar:hover { background-color: #bbb; }
-      .resultado {
-        background: #f7f7f7; padding: 20px; border-radius: 10px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
-      }
-      .resultado h2 { margin-bottom: 10px; color: #444; }
-      .resultado p { margin-bottom: 8px; }
-      @media (max-width: 480px) { .container { padding: 20px 15px; } button { font-size: 14px; padding: 12px; } }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Classificador de Emails</h1>
-      <form id="emailForm">
-        <label for="texto">Digite o conteúdo do email:</label>
-        <textarea id="texto" rows="6" placeholder="Digite ou cole o texto do email..."></textarea>
-        <label for="file">Ou envie um arquivo (.txt, .pdf, .csv):</label>
-        <input type="file" id="file" accept=".txt,.pdf,.csv" />
-        <button type="submit">Classificar Email</button>
-        <button type="button" id="limparBtn" class="botao-limpar">Limpar</button>
-      </form>
-      <div id="resultado" class="resultado">
-        <h2>Resultado:</h2>
-        <p><strong>Categoria:</strong> <span id="categoria">-</span></p>
-        <p><strong>Resposta sugerida:</strong> <span id="resposta">-</span></p>
-      </div>
-    </div>
+# app.py
+import os
+import io
+import csv
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from PyPDF2 import PdfReader
 
-    <script>
-      const form = document.getElementById("emailForm");
-      const textoInput = document.getElementById("texto");
-      const fileInput = document.getElementById("file");
-      const categoriaOutput = document.getElementById("categoria");
-      const respostaOutput = document.getElementById("resposta");
-      const limparBtn = document.getElementById("limparBtn");
+# ----------------------------
+# Configurações de ambiente
+# ----------------------------
+USE_AI = os.environ.get("USE_AI", "false").lower() in ("1", "true", "yes")
+GROQ_KEY = os.environ.get("GROQ_KEY", None)
 
-      const API_URL = "https://autou-case-backend-8ata.onrender.com";
+# Importa IA apenas se ativada e chave definida
+try:
+    if USE_AI and GROQ_KEY:
+        from ai_groq import analisar_com_groq  # módulo de IA
+    else:
+        USE_AI = False
+except Exception as e:
+    print(f"Falha ao importar AI: {e}")
+    USE_AI = False
 
-      async function classificarTexto(texto) {
-        const res = await fetch(`${API_URL}/classificar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ texto })
-        });
-        if (!res.ok) throw new Error(`Erro ${res.status}`);
-        return res.json();
-      }
+# ----------------------------
+# Inicializa API
+# ----------------------------
+app = FastAPI(title="AutoU API")
 
-      async function uploadArquivo(file) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
-        if (!res.ok) throw new Error(`Erro ${res.status}`);
-        return res.json();
-      }
+# ----------------------------
+# CORS (liberado para qualquer front)
+# ----------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # permite qualquer origem
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        categoriaOutput.textContent = "-";
-        respostaOutput.textContent = "-";
+# ----------------------------
+# Modelo de entrada
+# ----------------------------
+class EmailPayload(BaseModel):
+    texto: str | None = None
+    subject: str | None = None
+    body: str | None = None
 
-        try {
-          let data;
-          const file = fileInput.files[0];
+# ----------------------------
+# Função fallback local
+# ----------------------------
+def analisar_texto_local(texto: str):
+    t = texto.lower()
 
-          if (file) {
-            data = await uploadArquivo(file);
-          } else if (textoInput.value.trim()) {
-            data = await classificarTexto(textoInput.value.trim());
-          } else {
-            alert("Digite um texto ou envie um arquivo.");
-            return;
-          }
+    # improdutivo social
+    if any(k in t for k in ["feliz", "obrigado", "parabéns", "bom dia", "boa tarde", "boa noite", "felicit"]):
+        return "Improdutivo", "Olá! Agradecemos sua mensagem. Atenciosamente, Equipe."
 
-          categoriaOutput.textContent = data.categoria || "-";
-          respostaOutput.textContent = data.resposta_sugerida || "-";
-        } catch (err) {
-          console.error(err);
-          alert("Ocorreu um erro ao processar o email. Verifique se o back-end está ativo e acessível.");
-        }
-      });
+    # improdutivo promocional
+    if any(k in t for k in ["promoção", "oferta", "compre", "desconto"]):
+        return "Improdutivo", "Mensagem identificada como promocional. Obrigado pelo contato."
 
-      limparBtn.addEventListener("click", () => {
-        textoInput.value = "";
-        fileInput.value = "";
-        categoriaOutput.textContent = "-";
-        respostaOutput.textContent = "-";
-      });
-    </script>
-  </body>
-</html>
+    # produtivo
+    if any(k in t for k in ["status", "andamento", "pedido", "protocolo", "preciso", "ajuda", "suporte", "erro", "reclama", "cancelar", "comprovante", "anexo"]):
+        if any(k in t for k in ["status", "andamento", "pedido", "protocolo"]):
+            resposta = "Olá! Recebemos sua solicitação sobre status. Retornaremos em até 2 dias úteis."
+        elif any(k in t for k in ["comprovante", "anexo", ".pdf"]):
+            resposta = "Olá! Confirmamos o recebimento do documento e faremos a validação."
+        elif "cancelar" in t:
+            resposta = "Olá! Recebemos a solicitação de cancelamento. Encaminharemos para análise."
+        elif "reclam" in t or "erro" in t:
+            resposta = "Olá! Sentimos pelo ocorrido. Encaminhamos a reclamação ao setor responsável."
+        else:
+            resposta = "Olá! Sua mensagem foi encaminhada para análise. Retornaremos em breve."
+        return "Produtivo", resposta
+
+    return "Produtivo", "Olá! Sua mensagem foi recebida e será avaliada pela equipe."
+
+# ----------------------------
+# ENDPOINTS
+# ----------------------------
+@app.post("/classificar")
+async def classificar(payload: EmailPayload):
+    texto = payload.texto or f"{payload.subject or ''} {payload.body or ''}".strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Envie 'texto' ou 'subject'/'body' no JSON.")
+
+    try:
+        if USE_AI:
+            categoria, resposta = analisar_com_groq(texto)
+        else:
+            categoria, resposta = analisar_texto_local(texto)
+    except Exception as e:
+        print(f"[classificar] Erro AI: {e}")
+        categoria, resposta = analisar_texto_local(texto)
+
+    return {
+        "categoria": categoria,
+        "resposta_sugerida": resposta,
+        "usou_ai": USE_AI
+    }
+
+@app.post("/upload")
+async def upload(file: UploadFile = File(...)):
+    if not (file.filename.endswith((".txt", ".pdf", ".csv"))):
+        raise HTTPException(status_code=400, detail="Envie apenas .txt, .pdf ou .csv")
+
+    conteudo = ""
+
+    # TXT
+    if file.filename.endswith(".txt"):
+        conteudo = (await file.read()).decode("utf-8", errors="ignore")
+
+    # PDF
+    elif file.filename.endswith(".pdf"):
+        reader = PdfReader(file.file)
+        for page in reader.pages:
+            conteudo += page.extract_text() or ""
+
+    # CSV
+    elif file.filename.endswith(".csv"):
+        data = await file.read()
+        decoded = data.decode("utf-8", errors="ignore")
+        reader = csv.reader(io.StringIO(decoded))
+        for row in reader:
+            if row and row[0].strip().lower() in ("assunto", "subject"):
+                continue
+            conteudo += " ".join(row) + "\n"
+
+    if not conteudo.strip():
+        raise HTTPException(status_code=400, detail="Arquivo sem conteúdo legível.")
+
+    try:
+        if USE_AI:
+            categoria, resposta = analisar_com_groq(conteudo)
+        else:
+            categoria, resposta = analisar_texto_local(conteudo)
+    except Exception as e:
+        print(f"[upload] Erro AI: {e}")
+        categoria, resposta = analisar_texto_local(conteudo)
+
+    return {
+        "arquivo": file.filename,
+        "categoria": categoria,
+        "resposta_sugerida": resposta,
+        "usou_ai": USE_AI
+    }
+
+@app.get("/")
+async def root():
+    return {"mensagem": "API funcionando com IA gratuita!", "usou_ai": USE_AI}
