@@ -1,0 +1,7 @@
+<<<<<<< HEAD
+.vercel
+=======
+venv/
+__pycache__/
+.env
+>>>>>>> ab1e86c00f380c205489b4f3f30c197438ddbe2a
