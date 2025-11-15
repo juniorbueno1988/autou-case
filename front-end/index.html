@@ -84,12 +84,11 @@
       const API_URL = "https://autou-case-backend-8ata.onrender.com";
 
       async function classificarTexto(texto) {
-      const response = await fetch(`${API_URL}/classificar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto: "Teste de email" })
-    });
-
+        const res = await fetch(`${API_URL}/classificar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texto })
+        });
         if (!res.ok) throw new Error(`Erro ${res.status}`);
         return res.json();
       }
