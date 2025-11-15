@@ -18,12 +18,12 @@ try:
     if USE_AI and GROQ_KEY:
         from ai_groq import analisar_com_groq  # módulo de IA
     else:
-        USE_AI = False
-        if os.environ.get("USE_AI", "false").lower() in ("1", "true", "yes"):
+        if USE_AI:
             print("USE_AI ativado, mas chave GROQ_KEY não encontrada.")
+        USE_AI = False
 except Exception as e:
     print(f"Falha ao importar AI: {e}")
-    USE_AI = True
+    USE_AI = False
 
 # ----------------------------
 # Inicializa API
@@ -34,13 +34,13 @@ app = FastAPI(title="AutoU API")
 # Configuração CORS
 # ----------------------------
 origins = [
-    "http://localhost:5173",  # front local
-    "https://front-end-ochre-eta.vercel.app",  # front remoto
+    "http://localhost:5173",                   # front local
+    "https://front-end-ochre-eta.vercel.app"  # front remoto (sem barra no final)
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if not USE_AI else ["*"],  # permitir todos se usar AI
+    allow_origins=origins,       # agora fixo, sem condicional
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,7 +95,7 @@ async def classificar(payload: EmailPayload):
 
     try:
         if USE_AI:
-            categoria, resposta = analisar_com_groq(texto)
+            categoria, resposta = analisar_com_groq(texto, key=GROQ_KEY)
         else:
             categoria, resposta = analisar_texto_local(texto)
     except Exception as e:
@@ -140,7 +140,7 @@ async def upload(file: UploadFile = File(...)):
 
     try:
         if USE_AI:
-            categoria, resposta = analisar_com_groq(conteudo)
+            categoria, resposta = analisar_com_groq(conteudo, key=GROQ_KEY)
         else:
             categoria, resposta = analisar_texto_local(conteudo)
     except Exception as e:
