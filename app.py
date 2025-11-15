@@ -35,7 +35,7 @@ app = FastAPI(title="AutoU API")
 # ----------------------------
 origins = [
     "http://localhost:5173",  # front local
-    "https://front-end-ochre-eta.vercel.app/",  # front remoto
+    "https://front-end-ochre-eta.vercel.app",  # front remoto
 ]
 
 app.add_middleware(
