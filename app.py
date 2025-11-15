@@ -18,12 +18,12 @@ try:
     if USE_AI and GROQ_KEY:
         from ai_groq import analisar_com_groq  # módulo de IA
     else:
-        if USE_AI:
-            print("USE_AI ativado, mas chave GROQ_KEY não encontrada.")
         USE_AI = False
+        if os.environ.get("USE_AI", "false").lower() in ("1", "true", "yes"):
+            print("USE_AI ativado, mas chave GROQ_KEY não encontrada.")
 except Exception as e:
     print(f"Falha ao importar AI: {e}")
-    USE_AI = False
+    USE_AI = False  # sempre False em caso de erro
 
 # ----------------------------
 # Inicializa API
@@ -34,13 +34,13 @@ app = FastAPI(title="AutoU API")
 # Configuração CORS
 # ----------------------------
 origins = [
-    "http://localhost:5173",                   # front local
-    "https://front-end-ochre-eta.vercel.app"  # front remoto (sem barra no final)
+    "http://localhost:5173",  
+    "https://front-end-ochre-eta.vercel.app",  
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # agora fixo, sem condicional
+    allow_origins=origins,  # lista de front-ends permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
