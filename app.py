@@ -23,7 +23,7 @@ try:
             print("USE_AI ativado, mas chave GROQ_KEY não encontrada.")
 except Exception as e:
     print(f"Falha ao importar AI: {e}")
-    USE_AI = False
+    USE_AI = True
 
 # ----------------------------
 # Inicializa API
