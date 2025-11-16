@@ -92,7 +92,7 @@ A API estará disponível em: `http://localhost:8000`
 
 ## Deploy Online
 
-- **Frontend:** [https://front-end-ochre-eta.vercel.app](https://front-end-ochre-eta.vercel.app)
+- **Frontend:** [https://front-end-ochre-eta.vercel.app](https://vercel.com/juniorbueno1988s-projects/autou-case)
 - **Backend:** [https://autou-case-backend-8ata.onrender.com](https://autou-case-backend-8ata.onrender.com)
 
 > A aplicação online permite testar a classificação de emails diretamente no navegador, sem necessidade de instalação local.
@@ -130,3 +130,4 @@ A API estará disponível em: `http://localhost:8000`
 ## Licença
 
 Projeto open-source, livre para uso e estudo.
+
